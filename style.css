@@ -1,4 +1,4 @@
-/* style.css - Boundary X: Final Modern Mono Tech (Pose 265px Precision) */
+/* style.css - Boundary X: Final Modern Mono Tech (PC Layout Updated) */
 
 :root {
   /* Palette */
@@ -83,29 +83,29 @@ header {
   color: #000000;
 }
 
-/* Main Layout */
+/* Main Layout (기본 모바일: 세로 정렬) */
 main {
   width: 100%;
-  max-width: 840px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 3rem 1.5rem;
   flex: 1;
   display: flex;
-  flex-direction: column;
+  flex-direction: column; /* 기본: 위아래 배치 */
   align-items: center;
+  gap: 2rem;
 }
 
 /* Canvas Container (265px) */
 .canvas-container { 
-    width: 100%;
-    max-width: 265px; /* 해상도 265px에 맞춤 */
-    aspect-ratio: 1/1; /* 정사각형 비율 */
+    width: 265px; /* 고정 크기 */
+    height: 265px;
     border-radius: var(--radius-card);
     overflow: hidden;
     background: #000;
-    margin-bottom: 2rem;
     box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     position: relative;
+    flex-shrink: 0; /* 크기 줄어듦 방지 */
 }
 
 canvas { 
@@ -117,9 +117,10 @@ canvas {
 
 .controls {
   width: 100%;
+  max-width: 600px; /* 너무 넓어지지 않게 제한 */
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 24px;
 }
 
 .control-group {
@@ -332,7 +333,27 @@ address {
   color: #666;
 }
 
-@media (max-width: 768px) {
+/* --- [핵심] PC & 태블릿 레이아웃 변경 (가로 정렬) --- */
+@media (min-width: 768px) {
+  main {
+    flex-direction: row;       /* 가로 배치 */
+    align-items: flex-start;   /* 상단 정렬 */
+    justify-content: center;   /* 중앙 정렬 */
+    gap: 4rem;                 /* 사이 간격 넓게 */
+  }
+
+  .canvas-container {
+    position: sticky; /* 스크롤 내려도 따라오게 */
+    top: 2rem;        /* 상단 여백 */
+  }
+
+  .controls {
+    flex: 1;          /* 남은 공간 차지 */
+  }
+}
+
+/* 모바일 레이아웃 조정 */
+@media (max-width: 767px) {
   .footer-top { flex-direction: column; gap: 3rem; }
   .footer-links { gap: 2.5rem; flex-direction: column; }
   header { padding: 0.8rem 1rem; }
