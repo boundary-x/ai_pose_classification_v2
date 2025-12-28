@@ -1,6 +1,7 @@
 /**
  * sketch.js
  * Boundary X Pose Classification Logic (265x265 Teachable Machine Default)
+ * Fixed: Skeleton Mirroring Issue
  */
 
 // Bluetooth UUIDs
@@ -185,14 +186,14 @@ function startClassification() {
 async function classifyPose() {
   if (!isClassifying) return;
 
-  // 265px 캔버스 재사용 및 미러링
+  // 265px 캔버스 재사용 및 미러링 (AI 입력용)
   tempCtx.save();
   tempCtx.translate(CAM_WIDTH, 0); 
   tempCtx.scale(-1, 1);    
   tempCtx.drawImage(video.elt, 0, 0, CAM_WIDTH, CAM_HEIGHT);
   tempCtx.restore();
 
-  // 포즈 추정
+  // 포즈 추정 (이미 반전된 이미지가 들어감 -> 좌표도 반전된 상태로 나옴)
   const { pose: detectedPose, posenetOutput } = await model.estimatePose(tempCanvas);
   pose = detectedPose;
   prediction = await model.predict(posenetOutput);
@@ -238,22 +239,20 @@ function stopClassification() {
 }
 
 function draw() {
-  // 캔버스 그리기
+  // 캔버스 그리기 (거울 모드로 보여주기 위해 반전)
   push();
   translate(width, 0);
   scale(-1, 1);
   if (video) image(video, 0, 0, width, height);
   pop();
 
-  // 스켈레톤 시각화
+  // [수정됨] 스켈레톤 시각화 (이미 반전된 좌표이므로 변환 없이 그대로 그림)
   if (pose) {
     const minPartConfidence = 0.5;
-    push();
-    translate(width, 0); 
-    scale(-1, 1);       
+    // push, translate, scale 삭제함
     tmPose.drawKeypoints(pose.keypoints, minPartConfidence, drawingContext);
     tmPose.drawSkeleton(pose.keypoints, minPartConfidence, drawingContext);
-    pop();
+    // pop 삭제함
   }
 
   // 결과 박스
