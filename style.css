@@ -1,4 +1,4 @@
-/* style.css - Boundary X: Final Modern Mono Tech (PC Layout Updated) */
+/* style.css - Boundary X: AI Pose Recognition (Responsive & Sticky) */
 
 :root {
   /* Palette */
@@ -83,7 +83,7 @@ header {
   color: #000000;
 }
 
-/* Main Layout (기본 모바일: 세로 정렬) */
+/* Main Layout */
 main {
   width: 100%;
   max-width: 1200px;
@@ -91,21 +91,21 @@ main {
   padding: 3rem 1.5rem;
   flex: 1;
   display: flex;
-  flex-direction: column; /* 기본: 위아래 배치 */
+  flex-direction: column;
   align-items: center;
   gap: 2rem;
 }
 
-/* Canvas Container (265px) */
+/* Canvas Container (Fixed 265px for Teachable Machine) */
 .canvas-container { 
-    width: 265px; /* 고정 크기 */
+    width: 265px;
     height: 265px;
     border-radius: var(--radius-card);
     overflow: hidden;
     background: #000;
     box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     position: relative;
-    flex-shrink: 0; /* 크기 줄어듦 방지 */
+    flex-shrink: 0;
 }
 
 canvas { 
@@ -117,7 +117,7 @@ canvas {
 
 .controls {
   width: 100%;
-  max-width: 600px; /* 너무 넓어지지 않게 제한 */
+  max-width: 600px;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -149,6 +149,7 @@ canvas {
   margin-bottom: 1.5rem;
 }
 
+/* Button & Inputs */
 .button-group {
   display: flex;
   gap: 12px;
@@ -206,6 +207,7 @@ input:focus, select:focus {
   box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
 }
 
+/* Status Messages */
 #bluetoothStatus, #modelStatus {
   margin-top: 1rem;
   padding: 1rem;
@@ -333,35 +335,83 @@ address {
   color: #666;
 }
 
-/* --- [핵심] PC & 태블릿 레이아웃 변경 (가로 정렬) --- */
+/* --- RESPONSIVE LAYOUT SYSTEM --- */
+
+/* 1. PC & Tablet Layout (PC) */
 @media (min-width: 768px) {
   main {
-    flex-direction: row;       /* 가로 배치 */
-    align-items: flex-start;   /* 상단 정렬 */
-    justify-content: center;   /* 중앙 정렬 */
-    gap: 4rem;                 /* 사이 간격 넓게 */
+    flex-direction: row;       
+    align-items: flex-start;   
+    justify-content: center;   
+    gap: 4rem;                 
   }
 
   .canvas-container {
     position: sticky; /* 스크롤 내려도 따라오게 */
-    top: 2rem;        /* 상단 여백 */
+    top: 2rem;        
   }
 
   .controls {
-    flex: 1;          /* 남은 공간 차지 */
+    flex: 1;          
   }
 }
 
-/* 모바일 레이아웃 조정 */
-@media (max-width: 767px) {
-  .footer-top { flex-direction: column; gap: 3rem; }
-  .footer-links { gap: 2.5rem; flex-direction: column; }
+/* 2. Mobile Portrait (세로 모드) */
+@media (max-width: 767px) and (orientation: portrait) {
   header { padding: 0.8rem 1rem; }
   .title { font-size: 1rem; }
   .title img { height: 20px; }
   .back-button { font-size: 0.8rem; padding: 0.4rem 0.8rem; }
-  main { padding: 2rem 1rem; }
+  
+  .footer-top { flex-direction: column; gap: 3rem; }
+  .footer-links { gap: 2.5rem; flex-direction: column; }
+  
+  main { padding: 1rem; gap: 1.5rem; }
+  
+  /* [Sticky] 세로 모드 플로팅 */
+  .canvas-container {
+    position: sticky;        
+    top: 70px;               /* 헤더 높이만큼 띄움 */
+    z-index: 90;             /* 컨트롤보다 위에 표시 */
+    margin: 0 auto;          /* 중앙 정렬 */
+    margin-bottom: 1rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); /* 띄워진 느낌 강조 */
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
   .control-group { padding: 1.5rem; }
   .button-group { flex-direction: column; }
   button { width: 100%; }
+}
+
+/* 3. Mobile Landscape (가로 모드) */
+@media (max-width: 900px) and (orientation: landscape) {
+  header { padding: 0.5rem 1rem; }
+  
+  main {
+    flex-direction: row;      /* 좌우 배치 */
+    align-items: flex-start;  /* 상단 정렬 (Sticky 필수 조건) */
+    padding: 1rem;
+    gap: 1.5rem;
+  }
+
+  /* [Sticky] 가로 모드 플로팅 */
+  .canvas-container {
+    position: sticky;         
+    top: 80px;                /* 헤더 높이만큼 띄움 */
+    z-index: 90;
+    
+    /* 가로 모드에서는 캔버스가 너무 크지 않게 */
+    flex-shrink: 0;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2); 
+    margin-bottom: 0;
+  }
+  
+  .controls {
+    flex: 1;                  
+  }
+
+  .control-group { padding: 1rem; }
+  .button-group { flex-direction: row; } 
+  footer { display: none; } /* 가로 모드 공간 확보를 위해 푸터 숨김 */
 }
