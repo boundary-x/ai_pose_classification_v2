@@ -47,6 +47,19 @@ const modelList = {
 
 let isSendingData = false;
 
+// 문자열에 한글(자모/완성형)이 포함되어 있는지 검사
+function containsKorean(text) {
+  return /[\uAC00-\uD7A3\u3131-\u318E]/.test(text);
+}
+
+// 주어진 프로미스가 정해진 시간 안에 끝나지 않으면 강제로 실패 처리 (BLE 응답이 영영 안 올 때 대비)
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('BLE write timeout')), ms))
+  ]);
+}
+
 function setup() {
   let canvas = createCanvas(CAM_WIDTH, CAM_HEIGHT); 
   canvas.parent('p5-container');
@@ -157,7 +170,19 @@ function initializeModel() {
 
   tmPose.load(modelURL, metadataURL).then(loadedModel => {
     model = loadedModel;
-    
+
+    // 클래스 이름에 한글이 포함되어 있으면 분류를 시작하지 않고 안내
+    const classLabels = model.getClassLabels();
+    const koreanLabels = classLabels.filter(containsKorean);
+    if (koreanLabels.length > 0) {
+      if (modelStatusDiv) {
+        modelStatusDiv.html(`⚠️ 클래스 이름은 영어로만 지정해야 합니다. (한글 클래스: ${koreanLabels.join(', ')})`);
+        modelStatusDiv.style("color", "#EA4335");
+        modelStatusDiv.style("background-color", "#FCE8E6");
+      }
+      return;
+    }
+
     // 로딩 완료 피드백
     if (modelStatusDiv) {
       modelStatusDiv.html("✅ 모델 로드 완료! 분류를 시작합니다.");
@@ -225,16 +250,22 @@ async function classifyPose() {
   requestAnimationFrame(classifyPose);
 }
 
-function stopClassification() {
+async function stopClassification() {
   isClassifying = false;
   label = "중지됨";
   pose = null;
-  sendBluetoothData("stop");
-  
+  const sent = await sendBluetoothDataReliable("stop");
+
   if (modelStatusDiv) {
-    modelStatusDiv.html("모델 분류가 중지되었습니다.");
-    modelStatusDiv.style("color", "#333");
-    modelStatusDiv.style("background-color", "#F1F3F4");
+    if (sent) {
+      modelStatusDiv.html("모델 분류가 중지되었습니다.");
+      modelStatusDiv.style("color", "#333");
+      modelStatusDiv.style("background-color", "#F1F3F4");
+    } else {
+      modelStatusDiv.html("⚠️ 정지 신호 전송에 실패했어요. 블루투스 연결을 확인해주세요.");
+      modelStatusDiv.style("color", "#EA4335");
+      modelStatusDiv.style("background-color", "#FCE8E6");
+    }
   }
 }
 
@@ -281,6 +312,9 @@ async function connectBluetooth() {
     rxCharacteristic = await service.getCharacteristic(UART_RX_CHARACTERISTIC_UUID);
     txCharacteristic = await service.getCharacteristic(UART_TX_CHARACTERISTIC_UUID);
 
+    // 마이크로비트가 범위를 벗어나거나 전원이 꺼지는 등 예기치 않게 끊겼을 때도 상태를 동기화
+    bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
     isConnected = true;
     bluetoothStatus = "연결됨: " + bluetoothDevice.name;
     updateBluetoothStatusUI(true);
@@ -292,16 +326,39 @@ async function connectBluetooth() {
   }
 }
 
-function disconnectBluetooth() {
-  if (bluetoothDevice && bluetoothDevice.gatt.connected) {
-    bluetoothDevice.gatt.disconnect();
-  }
+// 사용자가 직접 '연결 해제' 버튼을 눌렀는지 구분하기 위한 플래그
+let isManualDisconnect = false;
+
+// 수동 해제든 예기치 않은 끊김이든 이 함수 하나로 상태를 정리
+function onDisconnected() {
   isConnected = false;
-  bluetoothStatus = "연결 해제됨";
   rxCharacteristic = null;
   txCharacteristic = null;
   bluetoothDevice = null;
-  updateBluetoothStatusUI(false);
+
+  if (isManualDisconnect) {
+    bluetoothStatus = "연결 해제됨";
+    updateBluetoothStatusUI(false);
+  } else {
+    bluetoothStatus = "연결이 끊어졌습니다. 다시 연결해주세요.";
+    updateBluetoothStatusUI(false, true);
+  }
+  isManualDisconnect = false;
+}
+
+function disconnectBluetooth() {
+  if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+    // 실제 상태 정리는 'gattserverdisconnected' 이벤트를 받는 onDisconnected()가 담당
+    isManualDisconnect = true;
+    bluetoothDevice.gatt.disconnect();
+  } else {
+    isConnected = false;
+    bluetoothStatus = "연결 해제됨";
+    rxCharacteristic = null;
+    txCharacteristic = null;
+    bluetoothDevice = null;
+    updateBluetoothStatusUI(false);
+  }
 }
 
 function updateBluetoothStatusUI(connected = false, error = false) {
@@ -319,17 +376,47 @@ function updateBluetoothStatusUI(connected = false, error = false) {
   }
 }
 
+// 반복 실패 시 안내 메시지가 매 프레임 깜빡이지 않도록 최소 간격을 둠
+let lastSendErrorTime = 0;
+
+// 성공하면 true, 스킵되거나 실패하면 false를 반환
 async function sendBluetoothData(data) {
-  if (!rxCharacteristic || !isConnected) return;
-  if (isSendingData) return;
+  if (!rxCharacteristic || !isConnected) return false;
+  // 방어적 안전망: 어떤 경로로든 한글 라벨이 들어오면 전송하지 않음
+  if (containsKorean(data)) {
+    console.warn("한글 라벨은 전송하지 않습니다:", data);
+    return false;
+  }
+  if (isSendingData) return false;
 
   try {
     isSendingData = true;
     const encoder = new TextEncoder();
-    await rxCharacteristic.writeValue(encoder.encode(data + "\n"));
+    // writeValue가 끝내 응답하지 않는 경우를 대비해 2초 타임아웃을 둠 (전송 영구 정지 방지)
+    await withTimeout(rxCharacteristic.writeValue(encoder.encode(data + "\n")), 2000);
+    return true;
   } catch (error) {
     console.error("Error sending data:", error);
+    const now = Date.now();
+    if (modelStatusDiv && now - lastSendErrorTime > 3000) {
+      lastSendErrorTime = now;
+      modelStatusDiv.html("⚠️ 데이터 전송에 실패했어요. 연결 상태를 확인해주세요.");
+      modelStatusDiv.style("color", "#EA4335");
+      modelStatusDiv.style("background-color", "#FCE8E6");
+    }
+    return false;
   } finally {
     isSendingData = false;
   }
+}
+
+// 'stop'처럼 반드시 전달되어야 하는 명령을 위한 재시도 버전
+async function sendBluetoothDataReliable(data, maxRetries = 5, retryDelayMs = 80) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const sent = await sendBluetoothData(data);
+    if (sent) return true;
+    await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+  }
+  console.error(`전송 재시도 실패: ${data}`);
+  return false;
 }
