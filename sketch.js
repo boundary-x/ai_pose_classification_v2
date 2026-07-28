@@ -336,12 +336,30 @@ function onDisconnected() {
   txCharacteristic = null;
   bluetoothDevice = null;
 
+  // 연결이 끊기면 인식(분류)도 함께 자동 중지 — 끊긴 채로 계속 돌아가는 것 방지
+  const wasClassifying = isClassifying;
+  if (isClassifying) {
+    isClassifying = false;
+    pose = null;
+    label = "중지됨";
+  }
+
   if (isManualDisconnect) {
     bluetoothStatus = "연결 해제됨";
     updateBluetoothStatusUI(false);
+    if (modelStatusDiv && wasClassifying) {
+      modelStatusDiv.html("블루투스 연결이 해제되어 인식이 중지되었습니다.");
+      modelStatusDiv.style("color", "#333");
+      modelStatusDiv.style("background-color", "#F1F3F4");
+    }
   } else {
     bluetoothStatus = "연결이 끊어졌습니다. 다시 연결해주세요.";
     updateBluetoothStatusUI(false, true);
+    if (modelStatusDiv && wasClassifying) {
+      modelStatusDiv.html("⚠️ 블루투스 연결이 끊어져 인식이 자동으로 중지되었습니다.");
+      modelStatusDiv.style("color", "#EA4335");
+      modelStatusDiv.style("background-color", "#FCE8E6");
+    }
   }
   isManualDisconnect = false;
 }
