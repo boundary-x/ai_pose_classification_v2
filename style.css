@@ -180,6 +180,17 @@ button {
   transform: translateY(-2px);
 }
 
+button:disabled {
+  background-color: #CCCCCC;
+  color: #888888;
+  cursor: not-allowed;
+  transform: none;
+}
+button:disabled:hover {
+  background-color: #CCCCCC;
+  transform: none;
+}
+
 .stop-button {
   background-color: white;
   color: var(--danger);
@@ -357,7 +368,8 @@ address {
 }
 
 /* 2. Mobile Portrait (세로 모드) */
-@media (max-width: 767px) and (orientation: portrait) {
+/* 화면 비율이 세로로 넉넉한 경우에 적용 — 키보드가 올라와도 이 스타일이 유지됨 */
+@media (max-width: 767px) and (max-aspect-ratio: 13/9) {
   header { padding: 0.8rem 1rem; }
   .title { font-size: 1rem; }
   .title img { height: 20px; }
@@ -382,10 +394,17 @@ address {
   .control-group { padding: 1.5rem; }
   .button-group { flex-direction: column; }
   button { width: 100%; }
+
+  /* 모델 주소 입력 중에는 카메라 화면을 숨겨서 입력 폼이 가려지지 않게 함 */
+  .canvas-container.hide-camera-on-input {
+    display: none;
+  }
 }
 
 /* 3. Mobile Landscape (가로 모드) */
-@media (max-width: 900px) and (orientation: landscape) {
+/* 화면 비율이 가로로 뚜렷하게 넓을 때만 적용 — 세로 모드에서 키보드가 올라와
+   일시적으로 너비가 높이보다 커지는 경우는 이 기준에 포함되지 않음 */
+@media (max-width: 900px) and (min-aspect-ratio: 13/9) {
   header { padding: 0.5rem 1rem; }
   
   main {
@@ -414,4 +433,9 @@ address {
   .control-group { padding: 1rem; }
   .button-group { flex-direction: row; } 
   footer { display: none; } /* 가로 모드 공간 확보를 위해 푸터 숨김 */
+
+  /* 모델 주소 입력 중에는 카메라 화면을 숨겨서 입력 폼이 가려지지 않게 함 */
+  .canvas-container.hide-camera-on-input {
+    display: none;
+  }
 }
