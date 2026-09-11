@@ -116,6 +116,14 @@ function createUI() {
   modelInput.parent('model-key-container');
   modelInput.attribute('placeholder', '모델 키(ID) 또는 전체 주소 입력');
 
+  const cameraContainerEl = document.querySelector('.canvas-container');
+  modelInput.elt.addEventListener('focus', () => {
+    if (cameraContainerEl) cameraContainerEl.classList.add('hide-camera-on-input');
+  });
+  modelInput.elt.addEventListener('blur', () => {
+    if (cameraContainerEl) cameraContainerEl.classList.remove('hide-camera-on-input');
+  });
+
   // 로딩 피드백창
   modelStatusDiv = createDiv('모델을 로드해주세요.');
   modelStatusDiv.parent('model-key-container');
@@ -141,7 +149,7 @@ function updateModelInput() {
 }
 
 function initializeModel() {
-  let inputVal = modelInput.value().trim();
+  let inputVal = modelInput.value().replace(/\s+/g, '');
   let modelURL = "";
   let metadataURL = "";
 
@@ -195,7 +203,7 @@ function initializeModel() {
   }).catch(error => {
     console.error('모델 로드 실패:', error);
     if (modelStatusDiv) {
-      modelStatusDiv.html("❌ 모델 로드 실패. 키 값을 확인해주세요.");
+      modelStatusDiv.html("❌ 모델 로드 실패. 키 값의 영문 대소문자까지 정확히 입력했는지 확인해주세요.");
       modelStatusDiv.style("color", "#EA4335");
       modelStatusDiv.style("background-color", "#FCE8E6");
     }
@@ -204,49 +212,87 @@ function initializeModel() {
 
 function startClassification() {
   if (!model) return;
+  consecutiveClassifyErrors = 0;
+  circuitBreakerTrips = 0;
   isClassifying = true;
   classifyPose();
 }
 
+// 분류가 연속으로 실패하면 잠깐 쉬었다가 재시도하고, 그마저 반복되면 완전히 멈추는 안전장치
+let consecutiveClassifyErrors = 0;
+let circuitBreakerTrips = 0;
+const MAX_CONSECUTIVE_CLASSIFY_ERRORS = 15; // 카메라 전환, 일시적 WebGL 문제 등 순간적인 hiccup에 여유를 둠
+const RETRY_COOLDOWN_MS = 3000;
+const MAX_COOLDOWN_RETRIES = 3; // 쿨다운 후 재시도까지 이 횟수만큼 반복 실패하면 완전히 중지
+
 async function classifyPose() {
   if (!isClassifying) return;
 
-  // 265px 캔버스 재사용 및 미러링 (AI 입력용)
-  tempCtx.save();
-  tempCtx.translate(CAM_WIDTH, 0); 
-  tempCtx.scale(-1, 1);    
-  tempCtx.drawImage(video.elt, 0, 0, CAM_WIDTH, CAM_HEIGHT);
-  tempCtx.restore();
+  try {
+    // 265px 캔버스 재사용 및 미러링 (AI 입력용)
+    tempCtx.save();
+    tempCtx.translate(CAM_WIDTH, 0); 
+    tempCtx.scale(-1, 1);    
+    tempCtx.drawImage(video.elt, 0, 0, CAM_WIDTH, CAM_HEIGHT);
+    tempCtx.restore();
 
-  // 포즈 추정 (이미 반전된 이미지가 들어감 -> 좌표도 반전된 상태로 나옴)
-  const { pose: detectedPose, posenetOutput } = await model.estimatePose(tempCanvas);
-  pose = detectedPose;
-  prediction = await model.predict(posenetOutput);
+    // 포즈 추정 (이미 반전된 이미지가 들어감 -> 좌표도 반전된 상태로 나옴)
+    const t0 = performance.now();
+    const { pose: detectedPose, posenetOutput } = await model.estimatePose(tempCanvas);
+    const t1 = performance.now();
+    pose = detectedPose;
+    prediction = await model.predict(posenetOutput);
+    const t2 = performance.now();
+    console.log(`포즈 추정: ${(t1 - t0).toFixed(0)}ms / 분류: ${(t2 - t1).toFixed(0)}ms / 합계: ${(t2 - t0).toFixed(0)}ms`);
 
-  if (prediction.length > 0) {
-    const bestResult = prediction.reduce((prev, current) => {
-      return (prev.probability > current.probability) ? prev : current;
-    });
+    consecutiveClassifyErrors = 0;
+    circuitBreakerTrips = 0;
 
-    // 신뢰도 85% 이상만 처리
-    if (bestResult.probability > 0.85) {
-      
-      // 연속성 체크
-      if (bestResult.className === lastLabel) {
-        consecutiveCount++;
-      } else {
-        lastLabel = bestResult.className;
-        consecutiveCount = 0;
-      }
+    if (prediction.length > 0) {
+      const bestResult = prediction.reduce((prev, current) => {
+        return (prev.probability > current.probability) ? prev : current;
+      });
 
-      if (consecutiveCount >= CONSISTENCY_THRESHOLD) {
-        label = bestResult.className;
-        // 딜레이 없이 즉시 전송
-        sendBluetoothData(label);
+      // 신뢰도 85% 이상만 처리
+      if (bestResult.probability > 0.85) {
+
+        // 연속성 체크
+        if (bestResult.className === lastLabel) {
+          consecutiveCount++;
+        } else {
+          lastLabel = bestResult.className;
+          consecutiveCount = 0;
+        }
+
+        if (consecutiveCount >= CONSISTENCY_THRESHOLD) {
+          label = bestResult.className;
+          // 딜레이 없이 즉시 전송
+          sendBluetoothData(label);
+        }
       }
     }
+  } catch (error) {
+    consecutiveClassifyErrors++;
+    console.error(`포즈 분류 오류 (연속 ${consecutiveClassifyErrors}회):`, error);
+    if (consecutiveClassifyErrors >= MAX_CONSECUTIVE_CLASSIFY_ERRORS) {
+      circuitBreakerTrips++;
+      if (circuitBreakerTrips >= MAX_COOLDOWN_RETRIES) {
+        console.error("포즈 분류 오류가 반복되어 완전히 중지합니다.");
+        isClassifying = false;
+        if (modelStatusDiv) {
+          modelStatusDiv.html("⚠️ 포즈 분류에 반복적으로 실패하여 자동 중지되었습니다. 모델 링크를 확인해주세요.");
+          modelStatusDiv.style("color", "#EA4335");
+          modelStatusDiv.style("background-color", "#FCE8E6");
+        }
+        return;
+      }
+      console.warn(`포즈 분류 오류가 반복되어 ${RETRY_COOLDOWN_MS}ms 후 재시도합니다. (${circuitBreakerTrips}/${MAX_COOLDOWN_RETRIES})`);
+      consecutiveClassifyErrors = 0;
+      setTimeout(() => { if (isClassifying) classifyPose(); }, RETRY_COOLDOWN_MS);
+      return;
+    }
   }
-  
+
   requestAnimationFrame(classifyPose);
 }
 
@@ -391,6 +437,11 @@ function updateBluetoothStatusUI(connected = false, error = false) {
       } else if (error) {
         statusElement.addClass('status-error');
       }
+  }
+
+  // 블루투스가 연결된 상태에서만 모델 로드를 시작할 수 있음
+  if (initializeModelButton) {
+    initializeModelButton.elt.disabled = !connected;
   }
 }
 
