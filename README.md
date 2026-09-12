@@ -11,7 +11,7 @@
 ### 1. 🤸 Real-time Pose Classification
 - **Teachable Machine Integration:** Supports pose models trained via [Teachable Machine](https://teachablemachine.withgoogle.com/).
 - **Dynamic Loading:** Users can load models by simply pasting the **Model URL** or **ID**.
-- **Optimization:** Includes a logic stability algorithm (Confidence > 85%, Consistency Check x3 frames) to prevent jittery data transmission.
+- **Optimization:** Includes a logic stability algorithm (Confidence > 85%, label stability check) to prevent jittery data transmission.
 
 ### 2. 🔗 Wireless Control (Web Bluetooth API)
 - Connects directly to **BBC Micro:bit** using the **Nordic UART Service**.
@@ -28,7 +28,7 @@
 
 ## 📡 Communication Protocol
 
-When a pose is recognized with high confidence (over 85%) for 3 consecutive frames, the **Class Label** is sent via Bluetooth UART.
+Results above 85% confidence pass through a label stability counter before the **Class Label** is sent repeatedly via Bluetooth UART. A new qualifying label resets the counter to zero; three further qualifying matches allow transmission. Lower-confidence frames do not reset this counter or automatically send stop.
 
 **Data Format:**
 ```text
@@ -52,3 +52,16 @@ When a pose is recognized with high confidence (over 85%) for 3 consecutive fram
 - All rights to the source code and design of this project belong to BoundaryX.
 - Web: boundaryx.io
 - Contact: https://boundaryx.io/contact
+
+
+## Help and Classroom Resources
+
+Open **도움말** in the header or expand **사용 가이드 및 지원** to access a nine-step screen guide, pose model training, four micro:bit code links, two lesson resources, troubleshooting and update notes. The guide highlights controls without loading a model or sending commands.
+
+Train a **Pose** project in Teachable Machine, use English letters or numbers without spaces for class names, upload it, and copy its share URL or ID. Connect micro:bit first to enable model loading. Loading starts classification automatically; the displayed label is not a device receipt confirmation.
+
+The introduction and lesson sources are linked in the support card. Node.js is not required to use the deployed web app.
+
+### Guide verification
+
+With Node.js, Playwright and Microsoft Edge installed, run `node tests/support.cjs`. This checks seven viewport sizes, all guide steps, focus restoration and unchanged app state using a simulated camera. Physical Bluetooth and pose accuracy require device testing.

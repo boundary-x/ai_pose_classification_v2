@@ -15,6 +15,7 @@
   
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
   <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="stylesheet" href="support.css?v=1">
 </head>
 
 <body>
@@ -28,7 +29,7 @@
       </a>
       AI 포즈인식
     </div>
-    <a href="https://boundaryx.io/59" class="back-button">돌아가기</a>
+    <div class="header-actions"><button type="button" class="help-button" data-help="">도움말</button><a href="https://boundaryx.io/59" class="back-button">돌아가기</a></div>
   </header>
 
   <main>
@@ -40,7 +41,7 @@
         <h3>1. 기기 연결</h3>
         <p>블루투스 연결 버튼을 클릭해 마이크로비트를 연결해주세요.</p>
         <div id="bluetoothStatus">상태: 연결 대기 중</div>
-        <div id="bluetooth-control-buttons" class="button-group" style="margin-top: 1.5rem;"></div>
+        <div id="bluetooth-control-buttons" class="button-group" style="margin-top: 1.5rem;"></div><div class="support-inline"><button type="button" data-help="help-connection">연결이 안 되나요?</button></div>
       </div>
 
       <div class="control-group">
@@ -54,6 +55,7 @@
         <div id="model-action-buttons" class="button-group"></div>
       </div>
 
+      <details id="support-card" class="control-group"></details>
     </section>
   </main>
 
@@ -99,5 +101,7 @@
   </footer>
 
   <script src="sketch.js"></script>
+  <script src="support.js?v=1"></script>
 </body>
 </html>
+
