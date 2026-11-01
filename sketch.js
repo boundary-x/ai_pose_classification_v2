@@ -300,6 +300,10 @@ async function stopClassification() {
   isClassifying = false;
   label = "중지됨";
   pose = null;
+  if (!isConnected || !rxCharacteristic) {
+    if (modelStatusDiv) modelStatusDiv.html("모델 분류가 중지되었습니다.");
+    return;
+  }
   const sent = await sendBluetoothDataReliable("stop");
 
   if (modelStatusDiv) {
@@ -439,9 +443,9 @@ function updateBluetoothStatusUI(connected = false, error = false) {
       }
   }
 
-  // 블루투스가 연결된 상태에서만 모델 로드를 시작할 수 있음
+  // 모델 로드와 인식은 블루투스 연결 없이도 사용할 수 있음
   if (initializeModelButton) {
-    initializeModelButton.elt.disabled = !connected;
+    initializeModelButton.elt.disabled = false;
   }
 }
 
@@ -450,7 +454,11 @@ let lastSendErrorTime = 0;
 
 // 성공하면 true, 스킵되거나 실패하면 false를 반환
 async function sendBluetoothData(data) {
-  if (!rxCharacteristic || !isConnected) return false;
+  if (containsKorean(data)) return false;
+  if (!rxCharacteristic || !isConnected) {
+    if (modelStatusDiv) modelStatusDiv.html("전송할 데이터: " + data);
+    return false;
+  }
   // 방어적 안전망: 어떤 경로로든 한글 라벨이 들어오면 전송하지 않음
   if (containsKorean(data)) {
     console.warn("한글 라벨은 전송하지 않습니다:", data);
@@ -462,7 +470,9 @@ async function sendBluetoothData(data) {
     isSendingData = true;
     const encoder = new TextEncoder();
     // writeValue가 끝내 응답하지 않는 경우를 대비해 2초 타임아웃을 둠 (전송 영구 정지 방지)
-    await withTimeout(rxCharacteristic.writeValue(encoder.encode(data + "\n")), 2000);
+    const target = rxCharacteristic;
+    await withTimeout(target.writeValue(encoder.encode(data + "\n")), 2000);
+    if (isConnected && rxCharacteristic === target && modelStatusDiv) modelStatusDiv.html("전송됨: " + data);
     return true;
   } catch (error) {
     console.error("Error sending data:", error);
@@ -489,3 +499,5 @@ async function sendBluetoothDataReliable(data, maxRetries = 5, retryDelayMs = 80
   console.error(`전송 재시도 실패: ${data}`);
   return false;
 }
+
+
